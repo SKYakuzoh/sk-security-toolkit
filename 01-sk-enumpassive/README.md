@@ -30,7 +30,7 @@ threat-intel, reverse-IP publiques).
 ## Dépendances
 
 - Bash
-- `subfinder`, `curl`, `jq`
+- `subfinder`, `curl`
 - Optionnel : clés API chargées depuis `~/.config/sk-enumpassive.env`
 
 ## Clés API

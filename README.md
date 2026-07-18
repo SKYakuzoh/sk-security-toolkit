@@ -37,12 +37,12 @@ bash privesc_enum.sh --full --output result.txt
 ```
 
 ### 03 — sk-recon
-Parse la sortie XML de Nmap (`-oX`) et, pour chaque service détecté,
-propose les commandes d'énumération/attaque adaptées (hydra, netexec,
-enum4linux-ng, ldapsearch, feroxbuster, sslscan, whatweb, nikto…).
-Sortie colorée.
+Lance Nmap (top-200, `-sV`), parse la sortie XML et, pour chaque service
+détecté, propose les commandes d'énumération/attaque adaptées (hydra,
+netexec, enum4linux-ng, ldapsearch, feroxbuster, sslscan, whatweb, nikto).
+Ajoute aussi les domaines détectés à `/etc/hosts`. **Nécessite sudo.**
 ```bash
-nmap -sV -oX scan.xml <cible> && python3 sk_recon.py scan.xml
+sudo python3 sk_recon.py -ip 10.10.10.10 -u example.htb
 ```
 
 ### 04 — sk-inject-sysreptor
@@ -74,7 +74,7 @@ python3 crack_myth.py "<hash_b64>" /usr/share/wordlists/rockyou.txt
 
 | Langage | Pré-requis |
 |---------|-----------|
-| Bash | outils standards Linux ; `subfinder`, `curl`, `jq` pour sk-enumpassive |
+| Bash | outils standards Linux ; `subfinder`, `curl` pour sk-enumpassive ; `nmap`+`sudo` pour sk-recon |
 | Python 3 | voir les `requirements.txt` (`colorama`, `requests`) |
 
 ## Installation rapide (outils Python)
