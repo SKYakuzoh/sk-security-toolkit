@@ -8,8 +8,10 @@ via `rsync` en préservant permissions, xattrs et hardlinks.
 
 ## Pré-requis
 
-- SSH actif sur la source
-- `rsync`, `sudo` côté destination
+- SSH actif sur la source (portable). Sur la source :
+  `sudo systemctl enable --now ssh`
+- Côté destination : `rsync`, `sudo`, et `docker` (pour l'étape 4/4 des
+  volumes Docker). Sur Kali : `apt install openssh-client rsync docker.io`
 - UID identique sur les deux machines (le script vérifie et aborte sinon)
 
 ## Usage

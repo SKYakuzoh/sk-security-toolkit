@@ -5,10 +5,17 @@ formaté en blocs `=== NOM ===`.**
 
 ## Workflow
 
-1. Notes brutes collées dans Claude (projet « reporting »)
-2. Claude génère un rapport formaté avec des blocs `=== ... ===`
+Le script consomme un fichier `.txt` découpé en blocs `=== NOM ===`. Tu
+peux générer ce fichier comme tu veux : à la main, via un LLM, via un
+template, etc. Exemple typique avec un LLM :
+
+1. Notes brutes collées dans ton outil (projet « reporting »)
+2. L'outil génère un rapport formaté avec des blocs `=== ... ===`
 3. Sauvegarde de la réponse dans un `.txt`
 4. `python3 sk_injectfinal.py rapport.txt` : rapport créé dans SysReptor
+
+Le format exact des blocs attendus est détaillé plus bas, et un exemple
+complet est dans [TEMPLATE_SETUP.md](TEMPLATE_SETUP.md) (étape 4).
 
 ## Variantes
 

@@ -18,7 +18,15 @@ bash privesc_enum.sh --output result.txt   # sauvegarde aussi dans result.txt
 
 ## Dépendances
 
-- Bash pur, outils standards Linux (aucune dépendance externe).
+- Bash (aucune dépendance obligatoire). Le script tourne tout seul.
+- Beaucoup de checks tentent des outils optionnels (`mysql`, `psql`,
+  `docker`, `nmap`, `nc`, etc.). Si un outil n'est pas installé, le check
+  correspondant est **ignoré silencieusement** (pas de crash), l'outil donne
+  juste moins de résultats. Avoir ces outils installés = énumération plus
+  complète.
+- Lecture seule : le script ne modifie rien sur la cible. Pas besoin d'être
+  root, mais sans root certains fichiers (shadow, configs root) ne seront
+  pas lisibles et les checks correspondants sortiront vide.
 
 ## Licence
 

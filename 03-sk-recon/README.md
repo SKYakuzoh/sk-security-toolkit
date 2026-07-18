@@ -43,7 +43,7 @@ sudo python3 sk_recon.py -ip 10.10.10.10 -u example.htb
   + les wordlists SecLists :
   - `/usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt`
   - `/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt`
-  - Sur Kali : `apt install whatweb feroxbuster ffuf seclists`
+  - Sur Kali : `apt install nmap whatweb feroxbuster ffuf seclists`
 
 ## Licence
 
