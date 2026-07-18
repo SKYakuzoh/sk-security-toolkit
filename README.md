@@ -94,4 +94,4 @@ Aucun secret / clé API / token n'est versionné.
 
 ## Licence
 
-MIT — voir `LICENSE` (à ajouter).
+MIT — voir [LICENSE](LICENSE).

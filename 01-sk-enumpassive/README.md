@@ -31,6 +31,7 @@ threat-intel, reverse-IP publiques).
 
 - Bash
 - `subfinder`, `curl`
+  - `subfinder` : `apt install subfinder` (Kali) ou `go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest`
 - Optionnel : clés API chargées depuis `~/.config/sk-enumpassive.env`
 
 ## Clés API

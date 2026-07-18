@@ -50,8 +50,13 @@ Les blocs manquants prennent la valeur `"TODO"` dans le rapport généré.
 ## ⚠️ Lié à un template SysReptor spécifique
 
 Les noms de blocs ci-dessus et le `DESIGN_ID` correspondent à un **design
-de rapport SysReptor précis**. Pour ta propre instance, adapte en haut du
-script :
+de rapport SysReptor précis**. Pour recréer ce design (sections, champs,
+DESIGN_ID), voir **[TEMPLATE_SETUP.md](TEMPLATE_SETUP.md)** — guide pas à pas
+avec la liste exacte des sections (`general`, `contacts`, `scope_section`,
+`content`) et de tous les fieldnames attendus, plus un exemple de `.txt` à
+tester.
+
+Pour ta propre instance, adapte en haut du script :
 
 - `SYSREPTOR_URL`   (par défaut `http://127.0.0.1:8000`)
 - `DESIGN_ID`        (identifiant de ton template de design SysReptor)
