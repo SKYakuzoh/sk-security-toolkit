@@ -34,9 +34,16 @@ threat-intel, reverse-IP publiques).
   - `subfinder` : `apt install subfinder` (Kali) ou `go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest`
 - Optionnel : clés API chargées depuis `~/.config/sk-enumpassive.env`
 
-## Clés API
+## Clés API (optionnelles)
 
-Les clés ne sont **jamais** hardcodées. Crée un fichier hors git :
+L'outil fonctionne **sans aucune clé** (voir plus bas). Les clés ajoutent
+juste des sources : SecurityTrails, Censys, Shodan, VirusTotal. Elles ne
+sont jamais hardcodées dans le script.
+
+### Méthode 1 : fichier de config (recommandé, persistant)
+
+Le script charge automatiquement `~/.config/sk-enumpassive.env` au démarrage
+(tu n'as pas à le `source` toi-même). Crée ce fichier **hors git** :
 
 ```bash
 # ~/.config/sk-enumpassive.env  (NE PAS committer)
@@ -44,9 +51,32 @@ export VT_API_KEY="..."
 export SECURITYTRAILS_API_KEY="..."
 export CENSYS_API_ID="..." ; export CENSYS_API_SECRET="..."
 export SHODAN_API_KEY="..."
+chmod 600 ~/.config/sk-enumpassive.env
 ```
 
-Les sources gratuites fonctionnent sans aucune clé.
+Pour utiliser un autre chemin : `SK_ENUMPASSIVE_ENV=/chemin/vers/fichier ./sk-enumpassive ...`
+
+### Méthode 2 : one-shot, en une ligne
+
+```bash
+VT_API_KEY="..." SHODAN_API_KEY="..." ./sk-enumpassive example.com
+```
+
+### Où obtenir les clés (toutes avec un tier gratuit)
+
+| Source        | Inscription                                              |
+|---------------|----------------------------------------------------------|
+| VirusTotal    | https://www.virustotal.com/gui/my-apikey                 |
+| Shodan        | https://account.shodan.io/register                       |
+| SecurityTrails| https://securitytrails.com/app/account (API key)         |
+| Censys        | https://search.censys.io/account/api (API ID + Secret)   |
+
+### Sans clé
+
+Les sources gratuites (subfinder, crt.sh, DoH Cloudflare, HackerTarget,
+ViewDNS, urlscan.io, ipinfo) suffisent à produire un rapport complet.
+Le pied de page du rapport affiche `VirusTotal ✗` quand la clé manque,
+c'est normal.
 
 ## Licence
 
