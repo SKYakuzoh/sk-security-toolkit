@@ -163,7 +163,7 @@ def main():
     # Infos générales
     info        = parse_info(blocks.get("INFORMATIONS GÉNÉRALES", ""))
     client_name = info.get("Nom du client", "Client")
-    ref         = info.get("Référence", "SKS-2026-001")
+    ref         = info.get("Référence", "REF-0001")
     audit_type  = info.get("Type d'audit", "Boîte grise")
     period      = info.get("Période", "TODO")
     access      = info.get("Accès fournis", "Compte de domaine (credentials fournis de manière sécurisée)")
@@ -205,9 +205,9 @@ def main():
     print(f"[*] {len(finding_blocks)} finding(s) détecté(s)...")
 
     for i, (fname, fcontent) in enumerate(finding_blocks.items(), 1):
-        # Extraire l'ID depuis le nom du bloc (ex: "FINDING SKS-2026-001")
-        id_match = re.search(r"SKS-\d{4}-\d+", fname)
-        finding_id = id_match.group(0) if id_match else f"SKS-2026-{i:03d}"
+        # Extraire l'ID depuis le nom du bloc (ex: "FINDING REF-0001")
+        id_match = re.search(r"REF-\d+", fname)
+        finding_id = id_match.group(0) if id_match else f"REF-{i:04d}"
         finding = parse_finding(fcontent)
         create_finding(project_id, finding, finding_id)
 

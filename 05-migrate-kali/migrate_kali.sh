@@ -1,26 +1,36 @@
 #!/usr/bin/env bash
 # Migration complète du setup Kali portable -> PC (Windows/Kali)
 # A lancer depuis le PC (destination), avec SSH déjà actif sur le portable.
+#
+# Usage:
+#   ./migrate_kali.sh                            # valeurs depuis l'env (voir ci-dessous)
+#   SOURCE_USER=bob SOURCE_HOST=192.168.1.42 ./migrate_kali.sh
+#
+# Variables d'environnement (toutes optionnelles, valeurs par défaut entre crochets):
+#   SOURCE_USER  utilisateur sur le portable source      [${USER:-yaku}]
+#   SOURCE_HOST  IP/hostname du portable source          [OBLIGATOIRE]
+#   LOCAL_USER   utilisateur local (PC destination)      [${USER:-yaku}]
 set -euo pipefail
 
-SOURCE_USER="yaku"
-SOURCE_HOST="192.168.1.XX"   # <-- mets l'IP du portable ici
+SOURCE_USER="${SOURCE_USER:-${USER:-yaku}}"
+SOURCE_HOST="${SOURCE_HOST:?SOURCE_HOST est obligatoire (ex: SOURCE_HOST=192.168.1.42 ./migrate_kali.sh)}"
+LOCAL_USER="${LOCAL_USER:-${USER:-yaku}}"
 SOURCE="${SOURCE_USER}@${SOURCE_HOST}"
 
 echo "=== 0/4 : Vérification UID ==="
-LOCAL_UID=$(id -u yaku)
-REMOTE_UID=$(ssh "${SOURCE}" "id -u yaku")
+LOCAL_UID=$(id -u "${LOCAL_USER}")
+REMOTE_UID=$(ssh "${SOURCE}" "id -u ${SOURCE_USER}")
 if [ "${LOCAL_UID}" != "${REMOTE_UID}" ]; then
-  echo "ATTENTION : UID différent (local=${LOCAL_UID}, portable=${REMOTE_UID})."
-  echo "Corrige avec 'sudo usermod -u ${REMOTE_UID} yaku' avant de continuer, sinon les permissions seront fausses."
+  echo "ATTENTION : UID différent (local=${LOCAL_USER}=${LOCAL_UID}, portable=${SOURCE_USER}=${REMOTE_UID})."
+  echo "Corrige avec 'sudo usermod -u ${REMOTE_UID} ${LOCAL_USER}' avant de continuer, sinon les permissions seront fausses."
   exit 1
 fi
 
-echo "=== 1/4 : Copie de /home/yaku ==="
+echo "=== 1/4 : Copie de /home/${LOCAL_USER} ==="
 sudo rsync -aAXHv --info=progress2 \
   --exclude='.cache' \
   --exclude='.local/share/Trash' \
-  "${SOURCE}:/home/yaku/" /home/yaku/
+  "${SOURCE}:/home/${SOURCE_USER}/" "/home/${LOCAL_USER}/"
 
 echo "=== 2/4 : Copie de /root (msf4, wordlists perso, etc.) ==="
 sudo rsync -aAXHv --info=progress2 \
@@ -42,4 +52,4 @@ for vol in $(ssh "${SOURCE}" "sudo docker volume ls -q"); do
 done
 
 echo "=== Terminé ==="
-echo "Vérifie les permissions (chown -R yaku:yaku /home/yaku si besoin) et relance tes containers (docker compose up -d)."
+echo "Vérifie les permissions (chown -R ${LOCAL_USER}:${LOCAL_USER} /home/${LOCAL_USER} si besoin) et relance tes containers (docker compose up -d)."

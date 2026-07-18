@@ -14,11 +14,12 @@ via `rsync` en préservant permissions, xattrs et hardlinks.
 
 ## Usage
 
-1. Éditer `SOURCE_HOST` en haut du script (IP du portable source)
-2. Lancer depuis le PC destination :
-
 ```bash
-./migrate_kali.sh
+# SOURCE_HOST est obligatoire ; SOURCE_USER / LOCAL_USER ont ${USER} par défaut
+SOURCE_HOST=192.168.1.42 ./migrate_kali.sh
+
+# ou tout spécifier
+SOURCE_USER=bob SOURCE_HOST=192.168.1.42 LOCAL_USER=bob ./migrate_kali.sh
 ```
 
 ## Étapes
