@@ -1,0 +1,48 @@
+# ===== Notes de travail (privées, pas pour GitHub) =====
+notes.txt
+**/notes.txt
+
+# ===== Secrets / credentials =====
+.env
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa*
+*.kdbx
+*.keystore
+
+# ===== Fichiers de clés API dédiés =====
+sk-enumpassive.env
+*api*key*
+
+# ===== Loot / données de pentest (JAMAIS push) =====
+loot/
+*.pcap
+*.pcapng
+*.dmp
+*.ntds
+*.sam
+*.hive
+hashes/
+creds/
+
+# ===== Wordlists volumineuses =====
+wordlists/
+*.txt.gz
+
+# ===== Sorties / rapports locaux =====
+out-*/
+*.html.bak
+*.log
+
+# ===== Python =====
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db

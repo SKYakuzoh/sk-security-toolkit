@@ -1,0 +1,545 @@
+#!/usr/bin/env bash
+# =============================================================================
+# sk-enumpassive — Énumération passive + bypass Cloudflare + reverse IP (100% passif)
+#
+# Usage: sk-enumpassive <domain> [--save DIR] [--open] [--deep]
+#
+#   Par défaut : un SEUL rapport HTML (aucun .txt écrit).
+#   --save DIR : rapport HTML + .txt intermédiaires + listes reverse-IP complètes dans DIR
+#   --open     : ouvrir le rapport HTML dans le navigateur
+#   --deep     : chercher l'origine par sous-domaine (long, + d'API)
+#
+# Ne contacte JAMAIS la cible. Sources : subfinder, crt.sh, DoH (443),
+# SecurityTrails/Censys/Shodan/VirusTotal (clés), HackerTarget/urlscan.io/ViewDNS (gratuits).
+# Reverse IP via HackerTarget hostsearch. Étiquette hébergeur/ASN via ipinfo.io.
+# =============================================================================
+
+set -uo pipefail
+
+# ----- chargement des clés API (fichier dédié optionnel) ---------------------
+ENV_FILE="${SK_ENUMPASSIVE_ENV:-$HOME/.config/sk-enumpassive.env}"
+if [[ -f "$ENV_FILE" ]]; then source "$ENV_FILE"; fi
+
+# ==== CLÉS API (chargées depuis l'env ou ~/.config/sk-enumpassive.env) =========
+# NE JAMAIS hardcoder de clé ici. Définis-les dans ton env ou dans le fichier
+# ~/.config/sk-enumpassive.env (qui doit rester hors git) :
+#   export VT_API_KEY="..."
+#   export SECURITYTRAILS_API_KEY="..."
+#   export CENSYS_API_ID="..." ; export CENSYS_API_SECRET="..."
+#   export SHODAN_API_KEY="..."
+# Les sources gratuites (HackerTarget/urlscan.io/ViewDNS/ipinfo) fonctionnent sans clé.
+# =============================================================================
+
+# ----- args ------------------------------------------------------------------
+DOMAIN=""
+SAVE_DIR=""
+OPEN=0
+DEEP=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --deep) DEEP=1; shift ;;
+    --open) OPEN=1; shift ;;
+    --save) SAVE_DIR="${2:-}"; shift 2 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    -*) echo "[!] Option inconnue: $1" >&2; exit 1 ;;
+    *) if [[ -z "$DOMAIN" ]]; then DOMAIN="$1"; shift
+       else echo "[!] Argument inattendu: $1" >&2; exit 1; fi ;;
+  esac
+done
+if [[ -z "$DOMAIN" ]]; then
+  echo "Usage: $0 <domain> [--save DIR] [--open] [--deep]" >&2
+  echo "  Par défaut : un seul rapport HTML, aucun .txt." >&2
+  echo "  --save DIR : rapport HTML + .txt intermédiaires dans DIR" >&2
+  echo "  --open     : ouvrir le rapport HTML" >&2
+  echo "  --deep     : origine par sous-domaine (long)" >&2
+  exit 1
+fi
+
+# OUTDIR = tempdir si pas de --save, sinon SAVE_DIR. Nettoyage auto du tempdir.
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+if [[ -n "$SAVE_DIR" ]]; then mkdir -p "$SAVE_DIR"; OUTDIR="$SAVE_DIR"; else OUTDIR="$TMP"; fi
+HTML_DIR="${SAVE_DIR:-$PWD}"
+HTML="${HTML_DIR}/sk-report-${DOMAIN}-$(date +%Y%m%d-%H%M).html"
+
+need() { command -v "$1" >/dev/null 2>&1 || { echo "[!] Manquant: $1" >&2; exit 1; }; }
+need subfinder
+need dnsx
+need python3
+need curl
+
+# ----- ranges Cloudflare -----------------------------------------------------
+CF_RANGES=(
+  173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22
+  141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20
+  197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13
+  104.24.0.0/14 172.64.0.0/13 131.0.72.0/22
+)
+
+in_cloudflare() {
+  python3 - "$1" "${CF_RANGES[@]}" <<'PY'
+import sys, ipaddress
+ip = ipaddress.ip_address(sys.argv[1])
+for cidr in sys.argv[2:]:
+    if ip in ipaddress.ip_network(cidr): sys.exit(0)
+sys.exit(1)
+PY
+}
+
+is_ipv4() { python3 -c "import ipaddress; ipaddress.IPv4Address('$1')" 2>/dev/null; }
+
+# ----- étiquette hébergeur/ASN (ipinfo.io, gratuit) --------------------------
+declare -A IP_LABEL
+ip_label() {
+  local ip="$1"
+  [[ -z "$ip" ]] && { echo "?"; return; }
+  [[ -n "${IP_LABEL[$ip]:-}" ]] && { echo "${IP_LABEL[$ip]}"; return; }
+  local org
+  org=$(curl -s --max-time 10 "https://ipinfo.io/${ip}/json" -A "Mozilla/5.0 sk-enumpassive" 2>/dev/null \
+    | python3 -c '
+import sys,json
+try: print(json.load(sys.stdin).get("org","?"))
+except: print("?")
+' 2>/dev/null)
+  org="${org:-?}"
+  IP_LABEL["$ip"]="$org"; echo "$org"
+}
+
+# classifie CDN/edge vs hébergeur/origine (répond au cas OVH vs Cloudflare)
+classify() {
+  local o="$1"
+  case "$o" in
+    *Cloudflare*|*Akamai*|*Fastly*|*Edgecast*|*Cloudfront*|*Imperva*|*Sucuri*|*Incapsula*|*Amazon*|*Amazon.com*) echo "cdn" ;;
+    *) echo "host" ;;
+  esac
+}
+
+# ----- reverse IP lookup (HackerTarget hostsearch, gratuit ~50/jour) ---------
+reverse_ip() {
+  local ip="$1"
+  curl -s --max-time 15 "https://api.hackertarget.com/hostsearch/?q=${ip}" -A "Mozilla/5.0 sk-enumpassive" 2>/dev/null \
+    | python3 -c '
+import sys,re
+for line in sys.stdin:
+    line=line.strip()
+    if not line or "API count" in line or "error" in line.lower() or "no records" in line.lower():
+        continue
+    m=re.match(r"^([A-Za-z0-9_.-]+),", line)
+    if m: print(m.group(1))
+' 2>/dev/null
+}
+
+# ----- sources d'origine (passives) : stdout "ip|source|date" ----------------
+origin_securitytrails() {
+  local d="$1"
+  [[ -z "${SECURITYTRAILS_API_KEY:-}" ]] && return 0
+  curl -s "https://api.securitytrails.com/v1/history/${d}/dns/a" \
+       -H "APIKEY: ${SECURITYTRAILS_API_KEY}" 2>/dev/null \
+    | python3 -c '
+import sys,json
+try: j=json.load(sys.stdin)
+except: sys.exit()
+for r in j.get("records",[]):
+    for v in r.get("values",[]):
+        ip=v.get("ip","")
+        if ip: print(ip+"|securitytrails|"+str(r.get("first_seen","")))
+' 2>/dev/null || true
+}
+
+origin_viewdns() {
+  local d="$1"
+  curl -s "https://viewdns.info/iphistory/?domain=${d}" -A "Mozilla/5.0 sk-enumpassive" 2>/dev/null \
+    | python3 -c '
+import sys,re
+html=sys.stdin.read()
+for row in re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S):
+    cells=re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)
+    if len(cells)>=2 and re.search(r"(19|20)\d{2}", cells[0]):
+        m=re.search(r"(\d{1,3}\.){3}\d{1,3}", cells[1])
+        if m: print(m.group(0)+"|viewdns-history|-")
+' 2>/dev/null || true
+}
+
+origin_censys() {
+  local d="$1"
+  [[ -z "${CENSYS_API_ID:-}" || -z "${CENSYS_API_SECRET:-}" ]] && return 0
+  curl -s -G "https://search.censys.io/api/v2/hosts/search" \
+       --data-urlencode "q=services.tls.certificates.leaf_data.subject.common_name: ${d}" \
+       -u "${CENSYS_API_ID}:${CENSYS_API_SECRET}" 2>/dev/null \
+    | python3 -c '
+import sys,json
+try: j=json.load(sys.stdin)
+except: sys.exit()
+for h in j.get("result",{}).get("hits",[]):
+    print(str(h.get("ip",""))+"|censys-cert|-")
+' 2>/dev/null || true
+}
+
+origin_shodan() {
+  local d="$1"
+  [[ -z "${SHODAN_API_KEY:-}" ]] && return 0
+  curl -s "https://api.shodan.io/shodan/host/search?key=${SHODAN_API_KEY}&query=ssl.cert.subject.cn:\"${d}\"" 2>/dev/null \
+    | python3 -c '
+import sys,json
+try: j=json.load(sys.stdin)
+except: sys.exit()
+for m in j.get("matches",[]):
+    print(str(m.get("ip_str",""))+"|shodan-ssl|-")
+' 2>/dev/null || true
+}
+
+origin_virustotal() {
+  local d="$1"
+  [[ -z "${VT_API_KEY:-}" ]] && return 0
+  curl -s "https://www.virustotal.com/vtapi/v2/domain/report?apikey=${VT_API_KEY}&domain=${d}" 2>/dev/null \
+    | python3 -c '
+import sys,json
+try: j=json.load(sys.stdin)
+except: sys.exit()
+for r in j.get("resolutions",[]) or []:
+    print(str(r.get("ip_address",""))+"|virustotal|"+str(r.get("last_resolved","")))
+' 2>/dev/null || true
+}
+
+origin_hackertarget() {
+  local d="$1"
+  curl -s "https://api.hackertarget.com/pdnslookup/?q=${d}" -A "Mozilla/5.0 sk-enumpassive" 2>/dev/null \
+    | grep -E ',A,[0-9]' \
+    | while IFS=',' read -r name type ip date; do
+        is_ipv4 "$ip" && echo "${ip}|hackertarget-pdns|${date}"
+      done
+}
+
+origin_urlscan() {
+  local d="$1"
+  curl -s -G "https://urlscan.io/api/v1/search/" \
+       --data-urlencode "q=page.domain:\"${d}\" OR task.domain:\"${d}\"" \
+       --data-urlencode "size=100" -A "Mozilla/5.0 sk-enumpassive" 2>/dev/null \
+    | python3 -c '
+import sys,json,re
+target=sys.argv[1]
+def ok(dom): return dom==target or dom.endswith("."+target)
+try: j=json.load(sys.stdin)
+except: sys.exit()
+for r in j.get("results",[]) or []:
+    page=r.get("page") or {}; task=r.get("task") or {}
+    if not (ok(page.get("domain","")) or ok(task.get("domain",""))): continue
+    ip=page.get("ip",""); ts=task.get("time","")
+    if re.fullmatch(r"(\d{1,3}\.){3}\d{1,3}", ip):
+        print(ip+"|urlscan|"+ts)
+' "$d" 2>/dev/null || true
+}
+
+# Résolution DNS-over-HTTPS (port 443) — fallback quand le port 53 est bloqué.
+resolve_doh() {
+  local in="$1" out="$2"
+  : > "$out"
+  while IFS= read -r sub; do
+    [[ -z "$sub" ]] && continue
+    curl -s "https://cloudflare-dns.com/dns-query?name=${sub}&type=A" -H 'accept: application/dns-json' 2>/dev/null \
+      | python3 -c '
+import sys,json,re
+try:
+  j=json.load(sys.stdin)
+  for a in j.get("Answer",[]) or []:
+      if a.get("type")==1 and re.fullmatch(r"(\d{1,3}\.){3}\d{1,3}", a.get("data","")):
+          print(a["data"])
+except: pass
+' 2>/dev/null | while read -r ip; do printf '%s %s\n' "$sub" "$ip" >> "$out"; done
+    sleep 0.05
+  done < "$in"
+}
+
+# Agrège les sources d'origine pour un domaine, filtre CF, écrit ip|src|date
+find_origin() {
+  local d="$1" out="$2"
+  : > "$out"
+  {
+    origin_securitytrails "$d"; origin_hackertarget "$d"; origin_urlscan "$d"
+    origin_viewdns "$d"; origin_censys "$d"; origin_shodan "$d"; origin_virustotal "$d"
+  } 2>/dev/null | sort -u > "$out.raw"
+  while IFS='|' read -r ip src date; do
+    [[ -z "$ip" ]] && continue
+    is_ipv4 "$ip" || continue
+    in_cloudflare "$ip" || printf '%s|%s|%s\n' "$ip" "$src" "$date"
+  done < "$out.raw" >> "$out"
+  rm -f "$out.raw"
+}
+
+# ============================================================================
+echo "[*] sk-enumpassive — $DOMAIN"
+echo "[*] Sources   : VirusTotal $([[ -n "${VT_API_KEY:-}" ]] && echo ✓ || echo ✗)  + ViewDNS / HackerTarget / urlscan.io / ipinfo (gratuits)"
+[[ -n "$SAVE_DIR" ]] && echo "[*] --save    : $SAVE_DIR (rapport HTML + .txt)"
+echo
+
+# 1. énumération passive -----------------------------------------------------
+echo "[+] [1/5] Sous-domaines (subfinder + crt.sh)..."
+{
+  subfinder -d "$DOMAIN" -all -recursive -silent 2>/dev/null || true
+  curl -s "https://crt.sh/?q=%25.${DOMAIN}&output=json" 2>/dev/null \
+    | python3 -c 'import sys,json
+try:
+  for x in json.load(sys.stdin): print(x["name_value"])
+except: pass' 2>/dev/null | tr ',' '\n' | tr -d '*' | sed "s/^\.//" || true
+} | sort -u | grep -v '^$' > "$OUTDIR/all-subdomains.txt"
+echo "    -> $(wc -l < "$OUTDIR/all-subdomains.txt") sous-domaines"
+
+# 2. résolution DNS ----------------------------------------------------------
+echo "[+] [2/5] Résolution DNS..."
+dnsx -l "$OUTDIR/all-subdomains.txt" -a -silent -r 1.1.1.1 -o "$OUTDIR/resolved.txt" 2>/dev/null || true
+if [[ ! -s "$OUTDIR/resolved.txt" ]]; then
+  echo "    dnsx vide (port 53 bloqué ?) -> fallback DoH (port 443)..."
+  resolve_doh "$OUTDIR/all-subdomains.txt" "$OUTDIR/resolved.txt"
+fi
+echo "    -> $(wc -l < "$OUTDIR/resolved.txt") résolus"
+
+# 3. filtre Cloudflare -------------------------------------------------------
+echo "[+] [3/5] Filtre Cloudflare (range IP)..."
+: > "$OUTDIR/cloudflare.txt"; : > "$OUTDIR/direct.txt"; : > "$OUTDIR/candidates-ips.txt"
+declare -A CF_IP_FOR
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  sub="${line%%[[:space:]]*}"
+  ip=$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<<"$line" | head -1)
+  [[ -z "$ip" ]] && continue
+  is_ipv4 "$ip" || continue
+  if in_cloudflare "$ip"; then
+    printf '%-40s %s\n' "$sub" "$ip" >> "$OUTDIR/cloudflare.txt"; CF_IP_FOR["$sub"]="$ip"
+  else
+    printf '%-40s %s\n' "$sub" "$ip" >> "$OUTDIR/direct.txt"; echo "$ip" >> "$OUTDIR/candidates-ips.txt"
+  fi
+done < "$OUTDIR/resolved.txt"
+sort -u "$OUTDIR/candidates-ips.txt" -o "$OUTDIR/candidates-ips.txt"
+echo "    -> CF: $(wc -l < "$OUTDIR/cloudflare.txt")  |  Direct: $(wc -l < "$OUTDIR/direct.txt")"
+
+# 4. recherche d'origine + ranker --------------------------------------------
+echo "[+] [4/5] Recherche d'IP d'origine (passive) + classement..."
+INVEST=()
+if [[ $DEEP -eq 1 ]]; then
+  while read -r sub _; do INVEST+=("$sub"); done < "$OUTDIR/cloudflare.txt"
+else
+  INVEST=("$DOMAIN")
+  grep -qE "^www\.${DOMAIN//./\\.}\b" "$OUTDIR/cloudflare.txt" 2>/dev/null && INVEST+=("www.${DOMAIN}")
+fi
+mapfile -t INVEST < <(printf '%s\n' "${INVEST[@]}" | awk '!seen[$0]++')
+
+RAW="$OUTDIR/_origin_all_raw.txt"; : > "$RAW"
+for d in "${INVEST[@]}"; do
+  [[ -z "$d" ]] && continue
+  echo "      -> origine de $d ..."
+  tmp="$OUTDIR/_origin_${d//./_}.txt"; find_origin "$d" "$tmp"; cat "$tmp" >> "$RAW"; rm -f "$tmp"
+done
+
+python3 - "$RAW" "$OUTDIR/origin-ips.txt" "$OUTDIR/origin-scored.tsv" <<'PY'
+import sys, ipaddress
+from collections import defaultdict
+RAW, OUT_IPS, OUT_SCORED = sys.argv[1:4]
+CF=["173.245.48.0/20","103.21.244.0/22","103.22.200.0/22","103.31.4.0/22",
+    "141.101.64.0/18","108.162.192.0/18","190.93.240.0/20","188.114.96.0/20",
+    "197.234.240.0/22","198.41.128.0/17","162.158.0.0/15","104.16.0.0/13",
+    "104.24.0.0/14","172.64.0.0/13","131.0.72.0/22"]
+CFN=[ipaddress.ip_network(c) for c in CF]
+DOC=["192.0.2.0/24","198.51.100.0/24","203.0.113.0/24","198.18.0.0/15","192.0.0.0/24","100.64.0.0/10","0.0.0.0/8","240.0.0.0/4"]
+DOCN=[ipaddress.ip_network(c) for c in DOC]
+BOGUS={"1.1.1.1","1.0.0.1","1.2.3.4","8.8.8.8","8.8.4.4","9.9.9.9","0.0.0.0","208.67.222.222","208.67.220.220","192.0.43.10"}
+def bad(ip):
+    try: i=ipaddress.IPv4Address(ip)
+    except: return True
+    if str(i) in BOGUS: return True
+    if i.is_private or i.is_loopback or i.is_link_local or i.is_multicast or i.is_reserved or i.is_unspecified: return True
+    for n in DOCN:
+        if i in n: return True
+    return False
+def in_cf(ip):
+    try: i=ipaddress.IPv4Address(ip)
+    except: return True
+    return any(i in n for n in CFN)
+srcs=defaultdict(set); dates=defaultdict(str); cnt24=defaultdict(int)
+with open(RAW) as f:
+    for line in f:
+        p=line.rstrip("\n").split("|")
+        if len(p)<2: continue
+        ip,src=p[0],p[1] or "?"; date=p[2] if len(p)>2 else ""
+        if bad(ip) or in_cf(ip): continue
+        srcs[ip].add(src); cnt24[".".join(ip.split(".")[:3])]+=1
+        if date and (not dates[ip] or date>dates[ip]): dates[ip]=date
+ranked=[]
+for ip in srcs:
+    pre=".".join(ip.split(".")[:3])
+    score=len(srcs[ip])*10000 + cnt24[pre]*50
+    ranked.append((score, dates[ip], ip, ",".join(sorted(srcs[ip])), cnt24[pre]))
+ranked.sort(key=lambda x:(x[0], x[1]), reverse=True)
+with open(OUT_IPS,"w") as f:
+    for _,_,ip,_,_ in ranked: f.write(ip+"\n")
+with open(OUT_SCORED,"w") as f:
+    for sc,dt,ip,sr,c in ranked: f.write(f"{ip}\t{sc}\t{dt}\t{sr}\t{c}\n")
+PY
+NB_ORIGIN=$(wc -l < "$OUTDIR/origin-ips.txt" 2>/dev/null || echo 0)
+
+# 5. reverse IP + rapport HTML ------------------------------------------------
+echo "[+] [5/5] Reverse IP lookup + rapport HTML..."
+
+# IPs à passer en reverse IP : top 5 origines + IPs directes (cap 10 total)
+REV_IPS=()
+i=0
+if [[ -s "$OUTDIR/origin-scored.tsv" ]]; then
+  while IFS=$'\t' read -r ip _ _ _ _; do [[ $i -ge 5 ]] && break; REV_IPS+=("$ip"); i=$((i+1)); done < "$OUTDIR/origin-scored.tsv"
+fi
+if [[ -s "$OUTDIR/direct.txt" ]]; then
+  while read -r _ ip; do [[ $i -ge 10 ]] && break; REV_IPS+=("$ip"); i=$((i+1)); done < "$OUTDIR/direct.txt"
+fi
+mapfile -t REV_IPS < <(printf '%s\n' "${REV_IPS[@]}" | awk '!seen[$0]++' | grep -v '^$')
+
+mkdir -p "$OUTDIR/reverse-ip"
+declare -A REV_COUNT
+for ip in "${REV_IPS[@]}"; do
+  [[ -z "$ip" ]] && continue
+  out="$OUTDIR/reverse-ip/${ip//./_}.txt"
+  reverse_ip "$ip" > "$out"
+  REV_COUNT["$ip"]=$(wc -l < "$out" 2>/dev/null || echo 0)
+done
+
+# maps sub -> ip et sub -> statut, pour la table HTML
+declare -A SUBIP SUBSTAT
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  s="${line%%[[:space:]]*}"; ip=$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<<"$line" | head -1)
+  [[ -n "$ip" ]] && SUBIP["$s"]="$ip"
+done < "$OUTDIR/resolved.txt"
+while read -r s _; do [[ -n "$s" ]] && SUBSTAT["$s"]=cf; done < "$OUTDIR/cloudflare.txt"
+while read -r s _; do [[ -n "$s" ]] && SUBSTAT["$s"]=direct; done < "$OUTDIR/direct.txt"
+
+# --- génération HTML ---
+{
+cat <<EOF
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sk-enumpassive — $DOMAIN</title>
+<style>
+ :root{--bg:#0d1117;--fg:#c9d1d9;--muted:#8b949e;--acc:#58a6ff;--card:#161b22;--line:#30363d;--cf:#f0883e;--ok:#3fb950;--cdn:#d2a8ff;--host:#7ee787}
+ *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;padding:24px;max-width:1100px;margin:0 auto}
+ h1{color:#fff;font-size:22px;margin:0 0 4px} h2{color:var(--acc);border-bottom:1px solid var(--line);padding-bottom:6px;margin:28px 0 12px;font-size:17px}
+ h3{color:#fff;font-size:14px;margin:14px 0 4px} .meta{color:var(--muted);font-size:12px;margin-bottom:8px}
+ .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;margin:10px 0}
+ table{border-collapse:collapse;width:100%;font-size:13px} th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+ th{color:var(--muted);font-weight:600} tr:hover td{background:#1c2128}
+ .tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+ .cf{background:#f0883e22;color:#f0883e} .direct{background:#3fb95022;color:#3fb950}
+ .cdn{background:#d2a8ff22;color:#d2a8ff} .host{background:#7ee78722;color:#7ee787}
+ code,pre{background:#010409;border:1px solid var(--line);border-radius:6px} pre{padding:10px;overflow:auto;color:#c9d1d9}
+ .small{color:var(--muted);font-size:12px} .sub{color:#fff;font-weight:600}
+ .ip{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#79c0ff}
+ ol{margin:6px 0 6px 18px;padding:0} li{margin:2px 0}
+</style></head><body>
+<h1>sk-enumpassive — <span class="ip">$DOMAIN</span></h1>
+<div class="meta">Généré le $(date '+%d/%m/%Y %H:%M') · 100% passif · Sources : VirusTotal $([[ -n "${VT_API_KEY:-}" ]] && echo ✓ || echo ✗) + ViewDNS / HackerTarget / urlscan.io / ipinfo.io</div>
+EOF
+
+# --- section sous-domaines ---
+echo "<section class=card><h2>Sous-domaines ($(wc -l < "$OUTDIR/all-subdomains.txt"))</h2>"
+echo "<table><thead><tr><th>Sous-domaine</th><th>IP</th><th>Statut</th></tr></thead><tbody>"
+while IFS= read -r s; do
+  [[ -z "$s" ]] && continue
+  ip="${SUBIP[$s]:-?}"; st="${SUBSTAT[$s]:-}"
+  case "$st" in
+    cf)     tag="<span class=tag cf>Cloudflare</span>" ;;
+    direct) tag="<span class=tag direct>Direct</span>" ;;
+    *)      tag="<span class=small>non résolu</span>" ;;
+  esac
+  printf '<tr><td class=sub>%s</td><td class=ip>%s</td><td>%s</td></tr>\n' "$s" "$ip" "$tag"
+done < "$OUTDIR/all-subdomains.txt"
+echo "</tbody></table></section>"
+
+# --- section origines ---
+echo "<section class=card><h2>IP Cloudflare & origines candidates</h2>"
+echo "<div class=small>IP Cloudflare actuelle (résolue via DoH) : <span class=ip>${CF_IP_FOR[$DOMAIN]:-?}</span></div>"
+echo "<table><thead><tr><th>#</th><th>IP origine</th><th>Type</th><th>Hébergeur / ASN</th><th>Score</th><th>Sources</th><th>Date</th><th>/24</th></tr></thead><tbody>"
+i=0
+if [[ -s "$OUTDIR/origin-scored.tsv" ]]; then
+  while IFS=$'\t' read -r ip sc dt sr c; do
+    i=$((i+1)); lbl=$(ip_label "$ip"); cls=$(classify "$lbl")
+    if [[ "$cls" == "cdn" ]]; then badge="<span class=tag cdn>CDN/edge</span>"; else badge="<span class=tag host>hébergeur=origine</span>"; fi
+    printf '<tr><td>%d</td><td class=ip>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n' \
+      "$i" "$ip" "$badge" "$lbl" "$sc" "$sr" "${dt:- -}" "$c"
+  done < "$OUTDIR/origin-scored.tsv"
+else
+  echo "<tr><td colspan=8 class=small>(aucune — essayer --deep ou ajouter des clés API)</td></tr>"
+fi
+echo "</tbody></table>"
+echo "<div class=small>Score = nb_sources×10000 + taille_grappe_/24×50. <b>CDN/edge</b> (Cloudflare/Akamai/Fastly/Amazon…) = proxy, à bypasser. <b>hébergeur=origine</b> (OVH/Hetzner/DigitalOcean/…) = IP directe du serveur, testable telle quelle.</div>"
+echo "</section>"
+
+# --- section reverse IP ---
+echo "<section class=card><h2>Reverse IP lookup (sites sur les mêmes IPs)</h2>"
+if [[ ${#REV_IPS[@]} -eq 0 ]]; then
+  echo "<div class=small>(aucune IP à analyser)</div>"
+else
+  for ip in "${REV_IPS[@]}"; do
+    [[ -z "$ip" ]] && continue
+    lbl=$(ip_label "$ip"); cls=$(classify "$lbl"); n=${REV_COUNT[$ip]:-0}
+    if [[ "$cls" == "cdn" ]]; then b="<span class=tag cdn>CDN</span>"; else b="<span class=tag host>host</span>"; fi
+    echo "<h3><span class=ip>$ip</span> $b <span class=small>$lbl</span> — $n site(s)</h3>"
+    if [[ "$n" -eq 0 ]]; then echo "<div class=small>(aucun ou rate-limit HackerTarget atteint)</div>"; continue; fi
+    echo "<ol>"
+    j=0
+    while IFS= read -r dom; do
+      [[ -z "$dom" ]] && continue; j=$((j+1)); [[ $j -gt 10 ]] && break
+      printf '<li><span class=sub>%s</span></li>\n' "$dom"
+    done < "$OUTDIR/reverse-ip/${ip//./_}.txt"
+    echo "</ol>"
+    if (( n > 10 )); then
+      if [[ -n "$SAVE_DIR" ]]; then
+        echo "<div class=small>… et $((n-10)) autres → reverse-ip/${ip//./_}.txt</div>"
+      else
+        echo "<div class=small>… et $((n-10)) autres (relance avec --save DIR pour exporter la liste complète)</div>"
+      fi
+    fi
+  done
+fi
+echo "</section>"
+
+# --- section confirmation ---
+echo "<section class=card><h2>Confirmation (étape ACTIVE — hors script)</h2>"
+echo "<pre># Ajouter dans /etc/hosts puis requêter directement l'origine :
+${CF_IP_FOR[$DOMAIN]:-<ip-origine-top>}  $DOMAIN
+curl -sk --resolve ${DOMAIN}:443:<ip-origine> https://${DOMAIN}/ -I
+
+# Comparer avec la réponse via Cloudflare :
+curl -sk https://${DOMAIN}/ -I</pre>"
+echo "<div class=small>⚠️ Les étapes SUIVANTES (nmap, ffuf, vhost brute) sont ACTIVES — autorisation requise.</div>"
+echo "</section></body></html>"
+} > "$HTML"
+
+# --- récap terminal concis ---
+echo
+echo "========================================================================="
+echo "[*] sk-enumpassive — $DOMAIN"
+echo "    Sous-domaines  : $(wc -l < "$OUTDIR/all-subdomains.txt")  (CF: $(wc -l < "$OUTDIR/cloudflare.txt"), direct: $(wc -l < "$OUTDIR/direct.txt"))"
+echo "    IPs d'origine  : $NB_ORIGIN (bruit filtré, classées)"
+echo
+echo "    Top origines :"
+i=0
+if [[ -s "$OUTDIR/origin-scored.tsv" ]]; then
+  while IFS=$'\t' read -r ip sc dt sr c; do
+    i=$((i+1)); [[ $i -gt 5 ]] && break
+    lbl=$(ip_label "$ip"); cls=$(classify "$lbl")
+    printf '      #%d %-16s [%s] %-22s score=%s\n' "$i" "$ip" "$cls" "$lbl" "$sc"
+  done < "$OUTDIR/origin-scored.tsv"
+fi
+echo
+echo "    Reverse IP (top 5 IPs, 3 sites/IP) :"
+for ip in "${REV_IPS[@]:0:5}"; do
+  [[ -z "$ip" ]] && continue
+  n=${REV_COUNT[$ip]:-0}
+  first=$(head -3 "$OUTDIR/reverse-ip/${ip//./_}.txt" 2>/dev/null | paste -sd ',' -)
+  printf '      %-16s [%s] %s site(s)%s\n' "$ip" "$(classify "$(ip_label "$ip")")" "$n" "${first:+ : $first}"
+done
+echo
+echo "    📄 Rapport HTML : $HTML"
+[[ -n "$SAVE_DIR" ]] && echo "    📁 Outputs .txt : $SAVE_DIR/"
+echo "========================================================================="
+
+[[ $OPEN -eq 1 ]] && (xdg-open "$HTML" >/dev/null 2>&1 &)
+echo
+echo "[*] /!\ Étapes SUIVANTES (nmap/ffuf/vhost brute) = ACTIVES, autorisation requise."
