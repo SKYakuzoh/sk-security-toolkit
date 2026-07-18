@@ -28,7 +28,7 @@ python3 crack_myth.py "u/+LBBOUnadiyFBsMOoIDPLbUR0rk59kEkPU17itdrVWA/kLMt3w+w=="
 | 3        | iterations  | `1000`                          |
 | 4        | dklen       | `40`                            |
 
-> Le salt est vide par défaut — modifie la variable `salt` dans le code
+> Le salt est vide par défaut, modifie la variable `salt` dans le code
 > si ton schéma en utilise un.
 
 ## Dépendances
@@ -37,4 +37,4 @@ python3 crack_myth.py "u/+LBBOUnadiyFBsMOoIDPLbUR0rk59kEkPU17itdrVWA/kLMt3w+w=="
 
 ## Licence
 
-MIT — usage éducatif / CTF
+MIT, usage éducatif / CTF

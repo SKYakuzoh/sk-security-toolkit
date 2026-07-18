@@ -24,21 +24,26 @@ Exemple :
 sudo python3 sk_recon.py -ip 10.10.10.10 -u example.htb
 ```
 
-## ⚠️ Pré-requis et effets de bord
+## Pré-requis et effets de bord
 
 - Doit être lancé **en root / sudo** (check au démarrage, abort sinon).
-- **Nmap** installé (le script l'invoque avec `-sV --top-ports 200`).
 - Sortie Nmap écrite dans `/tmp/sk_nmap_<IP>.{xml,txt}`.
 - **Modifie `/etc/hosts`** : ajoute les entrées `<IP> <domaine>` détectées
   si elles n'y sont pas déjà. C'est volontaire (résolution locale pour la
   suite de l'énum), mais à savoir.
-- Coloration via `colorama`.
+- La partie "checks web" lance `whatweb`, `feroxbuster` et `ffuf` sur les
+  ports HTTP(S). Si un de ces outils ou le wordlist manque, l'étape
+  correspondante échoue silencieusement et le script continue.
 
 ## Dépendances
 
-- Python 3
-- `colorama`  (`pip install -r requirements.txt`)
-- `nmap`
+- Python 3, `colorama`  (`pip install -r requirements.txt`)
+- **Obligatoire** : `nmap` (lancé avec `-sV --top-ports 200`)
+- **Pour les checks web** (recommandés) : `whatweb`, `feroxbuster`, `ffuf`
+  + les wordlists SecLists :
+  - `/usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt`
+  - `/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt`
+  - Sur Kali : `apt install whatweb feroxbuster ffuf seclists`
 
 ## Licence
 

@@ -1,6 +1,6 @@
 # sk-enumpassive
 
-**Énumération passive 100 % — bypass Cloudflare + reverse IP.**
+**Énumération passive 100 %, bypass Cloudflare + reverse IP.**
 
 Outil de reconnaissance qui **ne contacte jamais la cible**. Toutes les
 données proviennent de sources tierces (DNS passif, CT logs, API de

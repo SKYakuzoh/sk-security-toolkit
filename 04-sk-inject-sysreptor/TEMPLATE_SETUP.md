@@ -14,7 +14,7 @@ docker run -p 8000:8000 sysreptor/sysreptor:latest
 # API : http://127.0.0.1:8000/api/v1/
 ```
 
-Crée un token d'API dans SysReptor (profil → API tokens) puis :
+Crée un token d'API dans SysReptor (profil, onglet API tokens) puis :
 
 ```bash
 export SYSREPTOR_TOKEN=ton_token
@@ -22,7 +22,7 @@ export SYSREPTOR_TOKEN=ton_token
 
 ## 2. Créer le design de rapport
 
-Dans SysReptor : **Designs → New design** (un design de type
+Dans SysReptor : **Designs, New design** (un design de type
 *pentest report*). Le script attend **4 sections** avec les IDs suivants
 (ces IDs doivent correspondre exactement aux `section_id` que tu vois
 dans l'éditeur de design SysReptor) :

@@ -24,19 +24,19 @@ SOURCE_USER=bob SOURCE_HOST=192.168.1.42 LOCAL_USER=bob ./migrate_kali.sh
 
 ## Étapes
 
-- 0/4 : vérification de l'UID (local vs source) — abort si différent
+- 0/4 : vérification de l'UID (local vs source), abort si différent
 - 1/4 : copie de `/home/<user>` via `rsync -aAXHv` (exclut `.cache` et la
   corbeille). **Écrase** le `/home` local par la source
 - 2/4 : copie de `/root` (msf4, wordlists perso, etc.)
-- 3/4 : restauration des paquets apt (`dpkg --get-selections` →
-  `dpkg --set-selections` → `apt-get dselect-upgrade`)
+- 3/4 : restauration des paquets apt (`dpkg --get-selections` puis
+  `dpkg --set-selections` puis `apt-get dselect-upgrade`)
 - 4/4 : dump des volumes Docker de la source (tar.gz via conteneur alpine
   éphémère) puis restauration dans des volumes locaux créés à l'identique
 
-## ⚠️ Effets de bord
+## Effets de bord
 
 - `rsync` écrase la destination (`/home/<user>` et `/root`).
-- L'étape 3/4 installe/réinstalle des paquets — à lancer sur une machine
+- L'étape 3/4 installe/réinstalle des paquets, à lancer sur une machine
   de destination propre ou identique.
 - L'étape 4/4 suppose Docker installé côté destination.
 
