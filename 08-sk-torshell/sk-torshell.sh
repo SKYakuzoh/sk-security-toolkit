@@ -242,7 +242,16 @@ $(c_dim '----------------------------------------------------------------')
 $(c_dim '================================================================')
 BANNER
 
-su -s /bin/bash "$ORIG_USER" -c "bash --rcfile '$RC' -i"
+# Le sous-shell user est lance via `script` (tourne a l'identite user via su) :
+# script alloue un pty dedie, et bash --rcfile -i en est l'enfant direct, donc
+# session leader sur le pty -> job control actif -> fini le warning "pas de
+# controle de tache". Surtout : script passe le VRAI tty en raw mode, donc
+# Ctrl+C (0x03) est relaye vers le pty au lieu de generer un SIGINT sur le vrai
+# tty. Resultat : SIGINT va au job au premier plan dans le shell (ex. ping),
+# pas a su ni au parent sk-torshell -> la session Tor survit a un Ctrl+C.
+# trap EXIT reste arme : nettoyage a la sortie (tor-exit / kill / fermeture).
+trap '' INT
+su -s /bin/bash "$ORIG_USER" -c "exec script -q -c \"bash --rcfile $RC -i\" /dev/null"
 RC_RC=$?
 rm -f "$RC"
 exit $RC_RC

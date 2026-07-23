@@ -268,7 +268,7 @@ find_origin() {
 
 # ============================================================================
 echo "[*] sk-enumpassive - $DOMAIN"
-echo "[*] Sources   : VirusTotal $([[ -n "${VT_API_KEY:-}" ]] && echo ✓ || echo ✗)  + ViewDNS / HackerTarget / urlscan.io / ipinfo (gratuits)"
+echo "[*] Sources   : VirusTotal $([[ -n "${VT_API_KEY:-}" ]] && echo ok || echo KO)  + ViewDNS / HackerTarget / urlscan.io / ipinfo (gratuits)"
 [[ -n "$SAVE_DIR" ]] && echo "[*] --save    : $SAVE_DIR (rapport HTML + .txt)"
 echo
 
@@ -433,7 +433,7 @@ cat <<EOF
  ol{margin:6px 0 6px 18px;padding:0} li{margin:2px 0}
 </style></head><body>
 <h1>sk-enumpassive - <span class="ip">$DOMAIN</span></h1>
-<div class="meta">Généré le $(date '+%d/%m/%Y %H:%M') · 100% passif · Sources : VirusTotal $([[ -n "${VT_API_KEY:-}" ]] && echo ✓ || echo ✗) + ViewDNS / HackerTarget / urlscan.io / ipinfo.io</div>
+<div class="meta">Généré le $(date '+%d/%m/%Y %H:%M') · 100% passif · Sources : VirusTotal $([[ -n "${VT_API_KEY:-}" ]] && echo ok || echo KO) + ViewDNS / HackerTarget / urlscan.io / ipinfo.io</div>
 EOF
 
 # --- section sous-domaines ---
@@ -507,7 +507,7 @@ curl -sk --resolve ${DOMAIN}:443:<ip-origine> https://${DOMAIN}/ -I
 
 # Comparer avec la réponse via Cloudflare :
 curl -sk https://${DOMAIN}/ -I</pre>"
-echo "<div class=small>⚠️ Les étapes SUIVANTES (nmap, ffuf, vhost brute) sont ACTIVES - autorisation requise.</div>"
+echo "<div class=small>[!] Les étapes SUIVANTES (nmap, ffuf, vhost brute) sont ACTIVES - autorisation requise.</div>"
 echo "</section></body></html>"
 } > "$HTML"
 

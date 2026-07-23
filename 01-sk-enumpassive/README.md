@@ -75,7 +75,7 @@ VT_API_KEY="..." SHODAN_API_KEY="..." ./sk-enumpassive example.com
 
 Les sources gratuites (subfinder, crt.sh, DoH Cloudflare, HackerTarget,
 ViewDNS, urlscan.io, ipinfo) suffisent à produire un rapport complet.
-Le pied de page du rapport affiche `VirusTotal ✗` quand la clé manque,
+Le pied de page du rapport affiche `VirusTotal KO` quand la clé manque,
 c'est normal.
 
 ## Licence
