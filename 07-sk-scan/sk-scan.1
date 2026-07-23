@@ -1,0 +1,228 @@
+.TH SK-SCAN 1 "2026-07-23" "sk-scan 0.2.0" "Outils sk"
+.SH NAME
+sk-scan \- scanner TCP recon opsec, fait maison (TCP connect, sans privilege, mode Tor fiable)
+.SH SYNOPSIS
+.B sk-scan
+.RI [ options ]
+.RI [ cible ... ]
+.SH DESCRIPTION
+.PP
+.B sk-scan
+est un scanner de ports TCP "type nmap" mais volontairement minimaliste et oriente opsec.
+Il fonctionne en TCP connect pur : aucun raw socket, aucune capability requise, aucun acces root.
+Il marche donc dans les environnements restreints (sandbox, containers, no\-sudo), la ou nmap
+et son SYN scan echouent.
+.PP
+Il a ete concu pour deux usages :
+.IP \(bu 2
+\fBCTF / labs\fR : rapide a lancer, sans dependance, multi\-cibles, sortie parseable pour enchainer avec d'autres outils.
+.IP \(bu 2
+\fBOpsec (black/white hat)\fR : moins bruyant qu'un scan nmap par defaut, ordre des ports randomise, rate limiting, presets de timing, et un mode Tor dont le chemin reseau est controle (pas de repli silencieux en direct, contrairement a \fBnmap \-\-proxies\fR qui peut fuiter quand le proxy tombe).
+.PP
+Aucune fonctionnalite destructive : pas d'exploit, pas de DoS, pas d'ecriture sur l'hote cible.
+Pour tests autorises uniquement (pentests declares, CTF, labs, programmes bug bounty dans le scope).
+.SH MODES RESEAU
+.PP
+.B Direct (defaut)
+: connexion TCP classique depuis la machine. Rapide, mais l'IP source est la tienne.
+.PP
+.B Tor (\-\-tor)
+: tout le trafic est route via le SOCKS5 local de Tor (127.0.0.1:9050). Le protocole SOCKS5
+est implemente a la main dans l'outil : aucune dependance externe, et surtout \fBpas de repli en
+direct\fR. Si le proxy est injoignable, le scan echoue explicitement plutot que de fuiter (voir
+la section CAVEATS sur torsocks).
+.SH CIBLES
+.PP
+Les cibles peuvent etre :
+.IP \(bu 2
+une \fBIP\fR : \fB10.10.10.10\fR
+.IP \(bu 2
+un \fBhostname\fR : \fBexample.htb\fR (resolu via connect ; via Tor, resolu par le nceud de sortie, anti\-fuite DNS)
+.IP \(bu 2
+un \fBCIDR\fR : \fB10.10.10.0/24\fR
+.IP \(bu 2
+un \fBrange IPv4\fR : \fB10.10.10.1\-50\fR
+.IP \(bu 2
+un \fBfichier\fR : \fB\-iL cibles.txt\fR (une cible par ligne, lignes \fB#\fR ignorees)
+.PP
+Plusieurs cibles positionnelles sont acceptees : \fBsk-scan 10.10.10.10 10.10.10.11\fR.
+.SH PORTS
+.TP
+.B "defaut"
+top\-20 (21,22,23,25,53,80,110,111,135,139,143,443,445,993,995,1723,3306,3389,5900,8080)
+.TP
+.BR \-\-top " N"
+top\-N ports par ordre de popularite.
+.TP
+.BR \-p " 22,80,443"
+liste custom, virgule ou range : \fB22,80,443\fR ou \fB1\-1024\fR.
+.TP
+.B \-\-full
+tous les ports 1\-65535 (bruyant, lent, a eviter en opsec sauf raison precise).
+.SH OPSEC ET BRUIT
+.PP
+Un scan est detectable par son pattern : un paquet par port, dans l'ordre, rapidement. sk-scan
+cassee ces signatures par defaut et permet de les attenuer davantage :
+.IP \(bu 2
+\fBOrdre des ports randomise\fR par defaut (casse la signature sequentielle). \fB\-\-no-randomize\fR pour desactiver (utile pour reproduire un comportement).
+.IP \(bu 2
+\fBPas de banner grabbing par defaut\fR (\fB\-b\fR pour l'activer). Les bannières sont du trafic supplementaire et des signatures.
+.IP \(bu 2
+\fBRate limiting\fR (\fB\-\-rate N\fR) : plafonne le nombre de sondes/s.
+.IP \(bu 2
+\fBDelai\fR (\fB\-\-delay S\fR) : espace les sondes pour ressembler a du trafic humain.
+.IP \(bu 2
+\fBPresets de timing\fR (\fB\-\-timing\fR) : reglent rate/delay/timeout/retries d'un seul coup.
+.IP \(bu 2
+\fBPeu de retries\fR (1 par defaut) : moins de trafic, moins de signature.
+.PP
+Principe opsec general : un tunnel (Tor/VPS) gere l'identite (qui tu es), le timing gere la
+detectabilite (si on te voit). sk-scan te donne les deux leviers.
+.SH OPTIONS
+.TP
+.B cible
+Une ou plusieurs cibles (voir CIBLES).
+.TP
+.BI \-iL " FILE\fR, \fB\-\-input-list FILE"
+Fichier de cibles.
+.TP
+.BI \-p " PORTS\fR, \fB\-\-ports PORTS"
+Ports custom (ex : \fB22,80,443\fR ou \fB1\-1024\fR).
+.TP
+.BI \-\-top " N"
+Top\-N ports.
+.TP
+.B \-\-full
+Tous les ports 1\-65535.
+.TP
+.B \-\-tor
+Route via le SOCKS5 Tor local (127.0.0.1:9050). Mutuellement exclusif avec \fB\-\-proxy\fR.
+.TP
+.BI \-\-proxy " socks5://host:port"
+Proxy SOCKS5 generique. Mutuellement exclusif avec \fB\-\-tor\fR.
+.TP
+.BI \-\-tor-port " PORT"
+Port du proxy Tor (defaut 9050).
+.TP
+.BI \-t " SEC\fR, \fB\-\-timeout SEC"
+Timeout par sonde, en secondes.
+.TP
+.BI \-c " N\fR, \fB\-\-threads N"
+Concurrency (defaut 100). Reduite automatiquement si \fB\-\-rate\fR < threads.
+.TP
+.BI \-\-rate " N"
+Max sondes/s (rate limiting).
+.TP
+.BI \-\-delay " SEC"
+Delai entre sondes (s).
+.TP
+.BI \-\-timing " {paranoid,sneaky,polite,normal,aggressive}"
+Preset de timing. Voir tableau ci\-dessous. Si une option (\fB\-\-rate\fR/\fB\-\-delay\fR/\fB\-\-timeout\fR) est passee explicitement, elle surcharge la valeur du preset.
+.TP
+.B \-\-no-randomize
+Ne pas melanger l'ordre des ports.
+.TP
+.B \-b\fR, \fB\-\-banner
+Banner grabbing sur les ports ouverts (desactive par defaut, plus bruyant).
+.TP
+.B \-a\fR, \fB\-\-all
+Afficher aussi les ports closed/filtered (par defaut seuls les open sont montres).
+.TP
+.BI \-o " {human,json,csv,grep}\fR, \fB\-\-output ...
+Format de sortie. \fBhuman\fR (defaut), \fBjson\fR, \fBcsv\fR (avec en\-tete), \fBgrep\fR (tabule host<TAB>port<TAB>state<TAB>service<TAB>banner).
+.TP
+.BI \-O " FILE\fR, \fB\-\-outfile FILE"
+Ecrire la sortie dans un fichier.
+.TP
+.BI \-\-seed " N"
+Graine du random pour un ordre de ports reproductible (utile pour du reporting reproductible).
+.TP
+.B \-v\fR, \fB\-\-version
+Version.
+.SH PRESETS DE TIMING
+.TS
+allbox tab(|);
+cb cb cb cb cb
+n n n n n.
+Preset|Rate|Delay|Timeout|Retries
+paranoid|1/s|2.0s|5.0s|1
+sneaky|5/s|1.0s|3.0s|1
+polite|30/s|0.1s|2.0s|1
+normal|\(en|0.0s|1.5s|1
+aggressive|\(en|0.0s|0.5s|1
+.TE
+.PP
+\(en = pas de limite (la concurrency gouverne). \fBparanoid\fR pour l'opsec strict, \fBaggressive\fR pour le CTF ou le lab local.
+.SH SORTIE
+.PP
+Le resume final (\fB[done]\fR) va sur stderr pour ne pas polluer les sorties parsees (json/csv/grep), ce qui permet de piper proprement : \fBsk-scan ... \-o json | jq ...\fR.
+.SH EXEMPLES
+.SS CTF / lab (rapide, bruyant accepte)
+.PP
+.B sk-scan 10.10.10.10 \-\-top 100 \-b
+.PP
+.B sk-scan 10.10.10.10 \-p 1\-1000 \-o json | jq '.[] | select(.state=="open")'
+.SS Opsec furtif (pentest declare, IDS a eviter)
+.PP
+.B sk-scan 10.10.10.10 \-p 22,80,443,445 \-\-timing paranoid \-\-tor
+.PP
+.B sk-scan 10.10.10.0/24 \-p 22,80,443 \-\-rate 10 \-\-no-randomize \-o csv \-O res.csv
+.SS Audit complete d'une plage
+.PP
+.B sk-scan \-iL cibles.txt \-\-top 100 \-o csv \-O audit.csv
+.SS Reproductibilite (reporting)
+.PP
+.B sk-scan 10.10.10.10 \-\-top 100 \-\-seed 42 \-o json \-O baseline.json
+.SH CAVEATS
+.PP
+.B torsocks precharge (LD_PRELOAD).
+Si ton shell a torsocks precharge (variable \fBLD_PRELOAD\fR contenant \fBlibtorsocks\fR),
+la connexion de sk-scan vers le proxy local 127.0.0.1:9050 est bloquee par torsocks
+(protection anti\-fuite DNS). sk-scan detecte ce cas et le signale. Solution : lancer avec
+\fBenv \-u LD_PRELOAD sk-scan \-\-tor ...\fR, ou retirer torsocks de la session (\fBunset LD_PRELOAD\fR).
+.PP
+.B Tor = identite, pas furtivite reseau.
+Tor masque ton IP source, mais un IDS peut quand meme voir un pattern de scan venant d'une
+sortie Tor (les IP de sortie sont publiquement connues). Combiner \fB\-\-tor\fR avec un
+\fB\-\-timing paranoid\fR pour attenuer la signature.
+.PP
+.B UDP et ICMP non supportes.
+TCP connect uniquement (par conception, pour rester sans privilege). Pas de scan UDP, pas de
+ping ICMP, pas de host discovery reseau. La "decouverte" est implicite : un hote qui ne repond
+rien ressortira comme tout filtered.
+.PP
+.B Pas de detection de version / OS.
+sk-scan ne fait que du port scan + banner grabbing leger. Pour la dectection de version
+approfondie, enchainement manuel sur les ports ouverts (nmap \-sV cible par cible, ou outil dedie), hors opsec strict.
+.SH EXIT STATUS
+.TP
+.B 0
+Succes (meme si aucun port ouvert).
+.TP
+.B 1
+Erreur (cible manquante, proxy injoignable, fichier illisible, etc.).
+.SH FICHIERS
+.TP
+.B ~/.local/bin/sk-scan
+Lien (ou copie) d'installation sur le PATH.
+.TP
+.B ~/github-push/07-sk-scan/sk_scan.py
+Source.
+.SH VOIR AUSSI
+.BR nmap (1),
+.BR masscan (1),
+.BR tor (1),
+.BR proxychains (1),
+.BR torsocks (1)
+.SH BUGS
+.PP
+Banner grabbing sur ports non HTTP : se contente d'un recv spontane (banniere de service type SSH/FTP/SMTP).
+Si le service n'envoie rien sans probe, pas de banniere. Volontaire, pour rester leger.
+.PP
+Le rate limiter est global (inter\-threads), ce qui peut sous\-utiliser la concurrency en mode
+rate strict. Comportement attendu en opsec : on prefere respecter le plafond a la vitesse.
+.SH AUTEUR
+.PP
+sk-scan fait maison. Fait partie de la suite "sk".
+.SH LICENCE
+MIT.
