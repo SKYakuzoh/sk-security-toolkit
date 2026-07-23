@@ -80,7 +80,7 @@ run "cat /etc/sudoers.d/* 2>/dev/null | grep -v '^#' | grep -v '^$'"
 # Check for interesting sudo entries
 SUDO_L=$(sudo -l 2>/dev/null)
 for bin in nmap vim vi nano less more awk sed python python3 perl ruby lua bash sh env find wget curl tee cp chmod chown dd tar zip unzip git strace gdb man ftp socat nc netcat docker lxc kubectl; do
-    echo "$SUDO_L" | grep -qi "$bin" && hit "sudo access to: $bin  →  check GTFOBins!"
+    echo "$SUDO_L" | grep -qi "$bin" && hit "sudo access to: $bin  ->  check GTFOBins!"
 done
 
 # ─────────────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ info "Files with Linux capabilities"
 run "getcap -r / 2>/dev/null"
 CAPS=$(getcap -r / 2>/dev/null)
 echo "$CAPS" | grep -qE 'cap_setuid|cap_net_raw|cap_dac_read_search|cap_sys_admin' && \
-    hit "Dangerous capability found — check GTFOBins!"
+    hit "Dangerous capability found - check GTFOBins!"
 
 # ─────────────────────────────────────────────────────────────
 title "7. WRITABLE DIRECTORIES & FILES"
@@ -144,14 +144,14 @@ info "World-writable files owned by root"
 run "find / -writable -type f -user root ! -path '/proc/*' ! -path '/sys/*' 2>/dev/null | head -40"
 
 info "/etc/passwd writable?"
-[ -w /etc/passwd ] && hit "/etc/passwd is WRITABLE — you can add a root user!" || warn "/etc/passwd not writable"
+[ -w /etc/passwd ] && hit "/etc/passwd is WRITABLE - you can add a root user!" || warn "/etc/passwd not writable"
 
 info "/etc/shadow readable?"
-[ -r /etc/shadow ] && hit "/etc/shadow is READABLE — dump hashes!" || warn "/etc/shadow not readable"
+[ -r /etc/shadow ] && hit "/etc/shadow is READABLE - dump hashes!" || warn "/etc/shadow not readable"
 
 info "Writable PATH directories"
 echo "$PATH" | tr ':' '\n' | while read -r d; do
-    [ -w "$d" ] && hit "Writable PATH dir: $d  →  PATH hijacking possible"
+    [ -w "$d" ] && hit "Writable PATH dir: $d  ->  PATH hijacking possible"
 done
 
 # ─────────────────────────────────────────────────────────────
@@ -245,18 +245,18 @@ run "ps aux 2>/dev/null | grep -iE 'mysql|postgres|redis|mongo|memcache|docker|k
 title "11. DOCKER / CONTAINERS"
 # ─────────────────────────────────────────────────────────────
 info "Docker socket"
-[ -S /var/run/docker.sock ] && hit "/var/run/docker.sock exists — mount host filesystem via container!"
+[ -S /var/run/docker.sock ] && hit "/var/run/docker.sock exists - mount host filesystem via container!"
 run "ls -la /var/run/docker.sock 2>/dev/null"
 
 info "Current user in docker group?"
-id | grep -q docker && hit "User is in docker group — escalate via 'docker run -v /:/mnt ...'"
+id | grep -q docker && hit "User is in docker group - escalate via 'docker run -v /:/mnt ...'"
 
 info "Docker images/containers"
 run "docker ps -a 2>/dev/null"
 run "docker images 2>/dev/null"
 
 info "LXC / LXD"
-id | grep -q lxd && hit "User is in lxd group — LXD privesc possible!"
+id | grep -q lxd && hit "User is in lxd group - LXD privesc possible!"
 run "lxc list 2>/dev/null"
 
 info "Inside a container?"
@@ -303,7 +303,7 @@ run "ls -la /etc/ssh/ssh_host_*key 2>/dev/null"
 title "14. PATH HIJACKING & LD_PRELOAD"
 # ─────────────────────────────────────────────────────────────
 info "LD_PRELOAD in sudo env_keep?"
-sudo -l 2>/dev/null | grep -q 'LD_PRELOAD' && hit "LD_PRELOAD preserved by sudo — code execution as root possible!"
+sudo -l 2>/dev/null | grep -q 'LD_PRELOAD' && hit "LD_PRELOAD preserved by sudo - code execution as root possible!"
 sudo -l 2>/dev/null | grep -q 'LD_LIBRARY_PATH' && hit "LD_LIBRARY_PATH preserved by sudo!"
 
 info "Current PATH"
@@ -325,7 +325,7 @@ title "16. INSTALLED SOFTWARE"
 # ─────────────────────────────────────────────────────────────
 info "Useful binaries available"
 for bin in gcc g++ make python python3 perl ruby php node wget curl socat nc netcat ncat nmap git strace ltrace gdb tmux screen vi vim nano; do
-    command -v $bin &>/dev/null && info "  $bin → $(command -v $bin)"
+    command -v $bin &>/dev/null && info "  $bin -> $(command -v $bin)"
 done
 
 if [ "$FULL" -eq 1 ]; then
@@ -348,7 +348,7 @@ run "ls -la /root/ 2>/dev/null"
 
 info "Writable /etc/profile.d or /etc/bash*"
 for f in /etc/profile /etc/profile.d /etc/bash.bashrc /etc/environment; do
-    [ -w "$f" ] && hit "Writable init script: $f  →  persistence / privesc!"
+    [ -w "$f" ] && hit "Writable init script: $f  ->  persistence / privesc!"
 done
 
 # ─────────────────────────────────────────────────────────────

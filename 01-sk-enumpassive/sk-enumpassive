@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# sk-enumpassive — Énumération passive + bypass Cloudflare + reverse IP (100% passif)
+# sk-enumpassive - Énumération passive + bypass Cloudflare + reverse IP (100% passif)
 #
 # Usage: sk-enumpassive <domain> [--save DIR] [--open] [--deep]
 #
@@ -230,7 +230,7 @@ for r in j.get("results",[]) or []:
 ' "$d" 2>/dev/null || true
 }
 
-# Résolution DNS-over-HTTPS (port 443) — fallback quand le port 53 est bloqué.
+# Résolution DNS-over-HTTPS (port 443) - fallback quand le port 53 est bloqué.
 resolve_doh() {
   local in="$1" out="$2"
   : > "$out"
@@ -267,7 +267,7 @@ find_origin() {
 }
 
 # ============================================================================
-echo "[*] sk-enumpassive — $DOMAIN"
+echo "[*] sk-enumpassive - $DOMAIN"
 echo "[*] Sources   : VirusTotal $([[ -n "${VT_API_KEY:-}" ]] && echo ✓ || echo ✗)  + ViewDNS / HackerTarget / urlscan.io / ipinfo (gratuits)"
 [[ -n "$SAVE_DIR" ]] && echo "[*] --save    : $SAVE_DIR (rapport HTML + .txt)"
 echo
@@ -415,7 +415,7 @@ cat <<EOF
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>sk-enumpassive — $DOMAIN</title>
+<title>sk-enumpassive - $DOMAIN</title>
 <style>
  :root{--bg:#0d1117;--fg:#c9d1d9;--muted:#8b949e;--acc:#58a6ff;--card:#161b22;--line:#30363d;--cf:#f0883e;--ok:#3fb950;--cdn:#d2a8ff;--host:#7ee787}
  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;padding:24px;max-width:1100px;margin:0 auto}
@@ -432,7 +432,7 @@ cat <<EOF
  .ip{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#79c0ff}
  ol{margin:6px 0 6px 18px;padding:0} li{margin:2px 0}
 </style></head><body>
-<h1>sk-enumpassive — <span class="ip">$DOMAIN</span></h1>
+<h1>sk-enumpassive - <span class="ip">$DOMAIN</span></h1>
 <div class="meta">Généré le $(date '+%d/%m/%Y %H:%M') · 100% passif · Sources : VirusTotal $([[ -n "${VT_API_KEY:-}" ]] && echo ✓ || echo ✗) + ViewDNS / HackerTarget / urlscan.io / ipinfo.io</div>
 EOF
 
@@ -464,10 +464,10 @@ if [[ -s "$OUTDIR/origin-scored.tsv" ]]; then
       "$i" "$ip" "$badge" "$lbl" "$sc" "$sr" "${dt:- -}" "$c"
   done < "$OUTDIR/origin-scored.tsv"
 else
-  echo "<tr><td colspan=8 class=small>(aucune — essayer --deep ou ajouter des clés API)</td></tr>"
+  echo "<tr><td colspan=8 class=small>(aucune - essayer --deep ou ajouter des clés API)</td></tr>"
 fi
 echo "</tbody></table>"
-echo "<div class=small>Score = nb_sources×10000 + taille_grappe_/24×50. <b>CDN/edge</b> (Cloudflare/Akamai/Fastly/Amazon…) = proxy, à bypasser. <b>hébergeur=origine</b> (OVH/Hetzner/DigitalOcean/…) = IP directe du serveur, testable telle quelle.</div>"
+echo "<div class=small>Score = nb_sources×10000 + taille_grappe_/24×50. <b>CDN/edge</b> (Cloudflare/Akamai/Fastly/Amazon...) = proxy, à bypasser. <b>hébergeur=origine</b> (OVH/Hetzner/DigitalOcean/...) = IP directe du serveur, testable telle quelle.</div>"
 echo "</section>"
 
 # --- section reverse IP ---
@@ -479,7 +479,7 @@ else
     [[ -z "$ip" ]] && continue
     lbl=$(ip_label "$ip"); cls=$(classify "$lbl"); n=${REV_COUNT[$ip]:-0}
     if [[ "$cls" == "cdn" ]]; then b="<span class=tag cdn>CDN</span>"; else b="<span class=tag host>host</span>"; fi
-    echo "<h3><span class=ip>$ip</span> $b <span class=small>$lbl</span> — $n site(s)</h3>"
+    echo "<h3><span class=ip>$ip</span> $b <span class=small>$lbl</span> - $n site(s)</h3>"
     if [[ "$n" -eq 0 ]]; then echo "<div class=small>(aucun ou rate-limit HackerTarget atteint)</div>"; continue; fi
     echo "<ol>"
     j=0
@@ -490,9 +490,9 @@ else
     echo "</ol>"
     if (( n > 10 )); then
       if [[ -n "$SAVE_DIR" ]]; then
-        echo "<div class=small>… et $((n-10)) autres → reverse-ip/${ip//./_}.txt</div>"
+        echo "<div class=small>... et $((n-10)) autres -> reverse-ip/${ip//./_}.txt</div>"
       else
-        echo "<div class=small>… et $((n-10)) autres (relance avec --save DIR pour exporter la liste complète)</div>"
+        echo "<div class=small>... et $((n-10)) autres (relance avec --save DIR pour exporter la liste complète)</div>"
       fi
     fi
   done
@@ -500,21 +500,21 @@ fi
 echo "</section>"
 
 # --- section confirmation ---
-echo "<section class=card><h2>Confirmation (étape ACTIVE — hors script)</h2>"
+echo "<section class=card><h2>Confirmation (étape ACTIVE - hors script)</h2>"
 echo "<pre># Ajouter dans /etc/hosts puis requêter directement l'origine :
 ${CF_IP_FOR[$DOMAIN]:-<ip-origine-top>}  $DOMAIN
 curl -sk --resolve ${DOMAIN}:443:<ip-origine> https://${DOMAIN}/ -I
 
 # Comparer avec la réponse via Cloudflare :
 curl -sk https://${DOMAIN}/ -I</pre>"
-echo "<div class=small>⚠️ Les étapes SUIVANTES (nmap, ffuf, vhost brute) sont ACTIVES — autorisation requise.</div>"
+echo "<div class=small>⚠️ Les étapes SUIVANTES (nmap, ffuf, vhost brute) sont ACTIVES - autorisation requise.</div>"
 echo "</section></body></html>"
 } > "$HTML"
 
 # --- récap terminal concis ---
 echo
 echo "========================================================================="
-echo "[*] sk-enumpassive — $DOMAIN"
+echo "[*] sk-enumpassive - $DOMAIN"
 echo "    Sous-domaines  : $(wc -l < "$OUTDIR/all-subdomains.txt")  (CF: $(wc -l < "$OUTDIR/cloudflare.txt"), direct: $(wc -l < "$OUTDIR/direct.txt"))"
 echo "    IPs d'origine  : $NB_ORIGIN (bruit filtré, classées)"
 echo

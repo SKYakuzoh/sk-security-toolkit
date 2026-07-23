@@ -10,7 +10,7 @@ from colorama import Fore, Style, init
 init(autoreset=True)
 
 # ============================================================
-# LOOKUP TABLE : service detecte → suggestions enum/attaque
+# LOOKUP TABLE : service detecte -> suggestions enum/attaque
 # ============================================================
 
 SERVICE_HINTS = {
@@ -44,7 +44,7 @@ WEB_PORTS = {80, 443, 8080, 8443, 8000, 8888}
 # ============================================================
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="SK Recon — scanner automatise")
+    parser = argparse.ArgumentParser(description="SK Recon - scanner automatise")
     parser.add_argument("-ip", required=True, help="Adresse IP cible")
     parser.add_argument("-u", required=False, help="Domaine/URL cible (optionnel)")
     return parser.parse_args()
@@ -117,7 +117,7 @@ def display_summary(open_ports, ip):
         return
 
     print(Fore.CYAN + f"\n{'='*65}")
-    print(Fore.CYAN + f"  PORTS OUVERTS — {ip}")
+    print(Fore.CYAN + f"  PORTS OUVERTS - {ip}")
     print(Fore.CYAN + f"{'='*65}")
     print(f"{'PORT':<8} {'PROTO':<7} {'SERVICE':<15} {'VERSION'}")
     print(f"{'-'*65}")
@@ -153,7 +153,7 @@ def suggest_next(open_ports, ip):
             found_any = True
             print(Fore.YELLOW + f"\n[Port {p['port']}] {p['service']}")
             for hint in SERVICE_HINTS[matched]:
-                print(Fore.WHITE + f"  → {hint.replace('IP', ip)}")
+                print(Fore.WHITE + f"  -> {hint.replace('IP', ip)}")
 
     if not found_any:
         print(Fore.WHITE + "  Aucune suggestion automatique pour ces services.")
@@ -229,7 +229,7 @@ def run_web_checks(ip, open_ports, domain=None):
 
     for url in urls:
         print(Fore.CYAN + f"\n{'='*65}")
-        print(Fore.CYAN + f"  WEB CHECKS — {url}")
+        print(Fore.CYAN + f"  WEB CHECKS - {url}")
         print(Fore.CYAN + f"{'='*65}")
 
         print(Fore.YELLOW + "\n[*] WhatWeb...")

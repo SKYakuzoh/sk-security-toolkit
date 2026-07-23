@@ -41,7 +41,7 @@ TransPort) attrape TOUT, Go y compris, parce qu'il agit avant l'application.
   (Arch/Fedora/Gentoo...). Auto-detecte. Override possible :
   `sudo SK_TOR_USER=<user> sk-torshell`.
 - Backend nftables ou legacy (les regles matchent par destination, pas par
-  interface — voir caveats).
+  interface - voir caveats).
 
 ## Avertissement
 
@@ -54,6 +54,32 @@ TransPort) attrape TOUT, Go y compris, parce qu'il agit avant l'application.
   vers la machine (tu perdrais ta session au moment du DROP).
 - Un exit Tor peut etre en France : `loc=FR` dans une reponse ne prouve pas
   une fuite. La vraie verif est `IsTor:true`.
+
+## Cycle de vie (opsec)
+
+Le point le plus important a retenir, parce que c'est contre-intuitif :
+
+- **Demarrage** (`sudo sk-torshell`) : les regles iptables vont sur la chaine
+  OUTPUT, au **niveau noyau**. C'est donc **toute la machine** qui est
+  Tor-ifiee, pas seulement le shell ouvert. **Pendant la session, tu n'as
+  aucun terminal "clair"** : un autre onglet/terminal fait aussi du Tor (TCP)
+  ou se fait dropper (UDP/ICMP/IPv6). Ton IP reelle ne sort de nulle part.
+- **Pendant** : tu es anonyme cote reseau (IP masquee). Tu ne l'es pas cote
+  identite applicative (ne te connecte a aucun compte perso).
+- **Sortie** (`tor-exit`, ou fermeture du sous-shell) : le trap cleanup retire
+  les regles iptables et tue le tor dedie. Ta machine **revient au routage
+  normal, a ton IP reelle**. Tu n'es **plus anonyme** a partir de la. Tout ce
+  que tu veux faire anonyme doit se faire **avant** le `tor-exit`.
+- **Piège du kill brutal** : le cleanup est un trap (EXIT/INT/TERM). Il
+  s'execute dans tous les cas propres, **mais pas si le script est tue
+  brutalement** (`sudo kill -9` du process, coupure electrique). Dans ce cas
+  les regles iptables restent et la machine reste Tor-ifiee/cassee. Auto-guerison
+  : un **reboot** (les regles iptables sont en RAM, elles disparaissent au
+  reboot, le tor dedie meurt aussi), ou relancer `sudo sk-torshell` puis
+  `tor-exit` proprement.
+
+En une ligne : **lance = tout passe par Tor ; exit = retour a ton IP reelle,
+plus anonyme.** L'anonymat est une session, pas un etat permanent.
 
 ## Caveats techniques
 

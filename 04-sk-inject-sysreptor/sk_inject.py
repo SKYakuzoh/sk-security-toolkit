@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SK Security — SysReptor Injector
+SK Security - SysReptor Injector
 Usage: python3 sk_inject.py rapport_formate.txt
 Requires: SYSREPTOR_TOKEN dans l'environnement ou .env
 
@@ -8,7 +8,7 @@ Workflow :
   1. Colle tes notes brutes dans Claude.ai (projet SK Security Reporting)
   2. Claude génère le rapport formaté avec les blocs === ... ===
   3. Sauvegarde la réponse dans un fichier .txt
-  4. Lance ce script → rapport créé directement dans SysReptor
+  4. Lance ce script -> rapport créé directement dans SysReptor
 """
 
 import os
@@ -74,7 +74,7 @@ def parse_finding(content: str) -> dict:
 
 def create_project(client_name: str, ref: str) -> str:
     payload = {
-        "name": f"{client_name} — {ref}",
+        "name": f"{client_name} - {ref}",
         "project_type": DESIGN_ID,
         "tags": ["SK Security"]
     }
@@ -84,7 +84,7 @@ def create_project(client_name: str, ref: str) -> str:
         json=payload
     )
     if not r.ok:
-        print(f"[!] Erreur création projet : {r.status_code} — {r.text}")
+        print(f"[!] Erreur création projet : {r.status_code} - {r.text}")
         r.raise_for_status()
     project_id = r.json()["id"]
     print(f"[+] Projet créé : {project_id}")
@@ -99,7 +99,7 @@ def update_section(project_id: str, section_id: str, data: dict):
         json={"data": data}
     )
     if not r.ok:
-        print(f"[!] Erreur section {section_id} : {r.status_code} — {r.text}")
+        print(f"[!] Erreur section {section_id} : {r.status_code} - {r.text}")
     else:
         print(f"[+] Section '{section_id}' injectée")
 
@@ -107,7 +107,7 @@ def update_section(project_id: str, section_id: str, data: dict):
 def create_finding(project_id: str, finding_data: dict, finding_id: str):
     cvss_vector = finding_data.get("CVSS Vecteur", "n/a")
 
-    # Références — une par ligne commençant par http
+    # Références - une par ligne commençant par http
     refs_raw = finding_data.get("Références", "")
     refs = [r.strip() for r in refs_raw.splitlines() if r.strip().startswith("http")]
 
@@ -131,7 +131,7 @@ def create_finding(project_id: str, finding_data: dict, finding_id: str):
         json=payload
     )
     if not r.ok:
-        print(f"[!] Erreur création finding : {r.status_code} — {r.text}")
+        print(f"[!] Erreur création finding : {r.status_code} - {r.text}")
         r.raise_for_status()
     fid = r.json()["id"]
     print(f"[+] Finding créé : {finding_data.get('Titre', 'TODO')} ({fid})")
@@ -176,7 +176,7 @@ def main():
 
     # Injection par section selon la structure SysReptor
     update_section(project_id, "general", {
-        "title":             f"{client_name} — {ref}",
+        "title":             f"{client_name} - {ref}",
         "client_name":       client_name,
         "ref":               ref,
         "version":           "1.0",

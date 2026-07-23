@@ -42,7 +42,7 @@ err(){  printf '%s %s\n' "$(c_dim '[sk-torshell]')" "$(c_red "$*")" >&2; exit 1;
 
 usage(){
 cat <<EOF
-$(c_grn 'sk-torshell') $VERSION — terminal full-Tor (transparent proxy noyau)
+$(c_grn 'sk-torshell') $VERSION - terminal full-Tor (transparent proxy noyau)
 
 $(c_dim 'USAGE')
   sudo sk-torshell            demarre le terminal full-Tor
@@ -77,7 +77,7 @@ $(c_dim 'AVERTISSEMENT')
   Pour tests autorises uniquement (pentests declares, CTF, labs).
 
 $(c_dim 'VOIR AUSSI')
-  sk-scan(1)  —  scanner TCP recon avec mode Tor fiable
+  sk-scan(1)  -  scanner TCP recon avec mode Tor fiable
 EOF
 }
 
@@ -203,7 +203,7 @@ if [[ "$v_istor" == "true" ]]; then
     ROUTAGE_VERDICT="$(c_grn 'OK') : le trafic sort par Tor ($v_ip)"
 else
     ROUTAGE_VERDICT="$(c_ylw 'INCERTAIN') (IsTor='${v_istor:-?}' ip='${v_ip:-?}')"
-    warn "verification incertaine — le routage peut etre partiel. Verifie: tor-check"
+    warn "verification incertaine - le routage peut etre partiel. Verifie: tor-check"
 fi
 
 # 5) sous-shell utilisateur
@@ -221,7 +221,7 @@ EOF
 clear || true
 cat <<BANNER
 $(c_dim '================================================================')
- $(c_grn 'sk-torshell') $(c_dim '— transparent proxy : TOUT le trafic via Tor')
+ $(c_grn 'sk-torshell') $(c_dim '- transparent proxy : TOUT le trafic via Tor')
 $(c_dim '================================================================')
  sortie Tor      : $(c_grn "$EXIT_IP")
  routage noyau   : $ROUTAGE_VERDICT

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-crack_myth.py — Cracker PBKDF2-HMAC-SHA256 (1000 itérations, dklen=40) contre une wordlist.
+crack_myth.py - Cracker PBKDF2-HMAC-SHA256 (1000 itérations, dklen=40) contre une wordlist.
 
 Usage:
     python3 crack_myth.py <hash_b64> [wordlist] [iterations] [dklen]
