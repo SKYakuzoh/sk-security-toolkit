@@ -71,18 +71,33 @@ TransPort) attrape TOUT, Go y compris, parce qu'il agit avant l'application.
 
 ## Installation
 
+sk-torshell a besoin de **root**, on l'installe donc dans `/usr/local/bin`
+(vu par root), pas dans `~/.local/bin` (qui n'existe que pour ton user) :
+
 ```bash
-chmod +x sk-torshell.sh
-ln -sf "$PWD/sk-torshell.sh" ~/.local/bin/sk-torshell
+sudo install -m0755 sk-torshell.sh /usr/local/bin/sk-torshell
+# equivalent : sudo ln -sf "$PWD/sk-torshell.sh" /usr/local/bin/sk-torshell
 ```
 
-`~/.local/bin` est sur le PATH par defaut sur Kali/Debian. Verifie :
-`sk-torshell --help` (marche sans root).
+Verifie : `sudo sk-torshell --help` (doit afficher l'aide).
+
+**Si `sudo sk-torshell` renvoie "commande introuvable"**, c'est que ton
+`secure_path` sudo n'inclut pas `/usr/local/bin` (certains durcissements
+raccourcissent le secure_path a `/usr/sbin:/usr/bin:/sbin:/bin`). Deux options :
+
+```bash
+# option A (portable, marche partout) : command -v tourne dans ton shell
+sudo "$(command -v sk-torshell)"
+
+# option B : remettre /usr/local/bin dans le secure_path (drop-in reversible)
+echo 'Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"' | sudo tee /etc/sudoers.d/00-secure-path
+sudo visudo -c   # valide la syntaxe
+```
 
 ## Aide
 
 ```bash
-sk-torshell --help      # aide detaillee
+sk-torshell --help       # aide detaillee (marche sans root)
 sk-torshell --version    # version
 ```
 

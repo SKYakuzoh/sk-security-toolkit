@@ -49,6 +49,13 @@ $(c_dim 'USAGE')
   sk-torshell -h|--help       cette aide (pas besoin de root)
   sk-torshell -V|--version    version
 
+$(c_dim 'INSTALL')
+  Installe dans /usr/local/bin (vu par root), pas ~/.local/bin :
+    sudo install -m0755 sk-torshell.sh /usr/local/bin/sk-torshell
+  Si "sudo sk-torshell" n'est pas trouve, c'est que ton secure_path n'inclut
+  pas /usr/local/bin (durcissement). Utilise alors :
+    sudo "$(command -v sk-torshell)"   # ou le chemin absolu
+
 $(c_dim 'PRINCIPE')
   Lance une instance Tor DEDIEE (ne touche pas au tor systeme ni a
   /etc/tor/torrc). Redirige TOUT le trafic de la machine vers Tor au niveau
